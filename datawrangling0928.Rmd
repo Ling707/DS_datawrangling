@@ -9,4 +9,75 @@ output: Github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 # Data import
+```{r}
+library(tidyverse)
+litter <- read_csv("./data/FAS_litters.csv", col_types = "ccddiiii")
+pups <- read_csv("./data/FAS_pups.csv", col_types = "ccddiiii")
+
+
+```
+
+# select
+
+# filter
+
+- Filter rows
+
+```{r}
+
+filter(litter, 'Pups survive' != 4 , 'group' == "Con8")
+
+```
+
+# mutate
+
+add or change columns
+```{r mutate}
+
+
+mutate(litter, 
+       wt_gain = GD0_weight - GD18_weight,
+       group = str_to_lower(group))
+
+
+```
+
+# arrange
+
+check that all the dataset will be in the same structure
+```{r}
+
+arrange(litter, 'group','GD0 weight')
+
+```
+
+# %>%
+
+no need to repeat the dataset for every single steps
+```{r}
+litters_data = 
+  read_csv("./data/FAS_litters.csv", col_types = "ccddiiii") %>%
+  janitor::clean_names() %>%
+  select(-pups_survive) %>%
+  mutate(
+    wt_gain = gd18_weight - gd0_weight,
+    group = str_to_lower(group)) %>% 
+  drop_na(wt_gain)
+
+```
+
+```{r}
+
+litter1 = 
+  read_csv("./data/FAS_litters.csv", col_types = "ccddiiii") %>%
+  janitor::clean_names() %>%
+  drop_na(litter_number) %>%
+  mutate( weightchange = gd0_weight - gd18_weight )
+
+litter1
+```
+
+# Homework
+
+- produce some result
 
