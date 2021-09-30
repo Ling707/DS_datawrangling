@@ -1,0 +1,169 @@
+---
+title: "datawrangling0930"
+output: Github_document
+editor_options: 
+  chunk_output_type: inline
+---
+# Rules for tidy data
+
+- observations(row) x variables (col)
+- every *value* has a cell
+
+- relational data: spread across tables w/ defined relations
+  - keys: variables used to define these relations
+  - tables are combined by joins: left, right, full
+    - L and R are the same, stick to 1 when using
+    
+- key functions:in `tidyr` `dplyr`
+  - `pivot_longer` like `gather`, but `gather` is confusing
+  - `separate`
+  - `pivot_wider` less used, like `spread`, but `spread` is confusing
+  - `bind_rows`
+  - `*_join` left/right/full
+  
+# practice
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## `pivot_longer`
+
+- wide format to long format
+- value in variables --> value in cells 
+- e.g., public_pulse_data
+
+```{r}
+library(tidyverse)
+
+pulse_df = 
+  haven::read_sas("./data/public_pulse_data.sas7bdat") %>%
+  janitor::clean_names()
+
+view(pulse_df)
+
+# need to put f/u time into cells
+
+pulse_tidy =
+  pivot_longer(
+    pulse_df,
+    bdi_score_bl:bdi_score_12m,
+    names_to = "visit", # variable name to the f/u time
+    names_prefix = "bdi_score_", # delete the prefixes
+    values_to = "bdi" # values of the original variable
+  ) %>%
+
+relocate(visit) %>%
+mutate(
+    visit = replace(visit, visit == "bl", "00m"),#change baseline into 0 months
+    visit = factor(visit) # let the visit time transformed into factor
+    ) %>%
+
+arrange(id, visit)
+view(pulse_tidy)
+```
+
+## `pivot_wider`
+
+- long format into wide format
+
+```{r}
+# data to be used
+
+analysis_result = tibble(
+  group = c("treatment", "treatment", "placebo", "placebo"),
+  time = c("pre", "post", "pre", "post"),
+  mean = c(4, 8, 3.5, 4)
+)
+
+# not reading-friendly in reading, transpose time into columns
+
+analysis_result = 
+  pivot_wider(
+    analysis_result,
+    names_from = "time",
+    values_from = "mean"
+  )
+view(analysis_result)
+
+```
+
+- ambiguity for tidiness
+  - according to the usage
+  
+## `bind_row`
+
+```{r}
+# put 3 tables of different movies into 1 table
+
+fellowship_ring = 
+  readxl::read_excel("./data/LotR_Words.xlsx", range = "B3:D6") %>%
+  mutate(movie = "fellowship_ring") # add a variable "movie"
+
+two_towers = 
+  readxl::read_excel("./data/LotR_Words.xlsx", range = "F3:H6") %>%
+  mutate(movie = "two_towers")
+
+return_king = 
+  readxl::read_excel("./data/LotR_Words.xlsx", range = "J3:L6") %>%
+  mutate(movie = "return_king")
+
+view(return_king)
+
+## merge the data
+
+lotr_tidy = 
+  bind_rows(fellowship_ring, two_towers, return_king) %>% # put the rows together (more rows)
+  janitor::clean_names() %>%
+  pivot_longer(
+    female:male, # the cols to be changed
+    names_to = "sex", # the new variables for cols
+    values_to = "words" # the new variables for the previous values in "male" and "female"
+  ) %>%
+  mutate(race = str_to_lower(race)) %>%
+  select(movie, everything())
+
+view(lotr_tidy)
+```
+
+- rbind vs. bind_rows
+  - `rbind` is problematic
+  - never use `rbind`
+
+
+## `*_join`
+
+- left? right? full? inner?
+- default for `*_join`: R will try to detemine the keys based on he variable names
+- `*_join` cannot be followed by `%>%`: join is not a linear step
+
+```{r}
+# join pups and litters
+
+pup_data = 
+  read_csv("./data/FAS_pups.csv") %>%
+  janitor::clean_names() %>%
+  mutate(
+    sex = recode(sex, `1` = "male", `2` = "female"),
+    sex = factor(sex)) 
+
+litter_data = 
+  read_csv("./data/FAS_litters.csv") %>%
+  janitor::clean_names() %>%
+  separate(group, into = c("dose", "day_of_tx"), sep = 3) %>% # the groups are not looking good, thus separate the group into 2 variables, separate them after the 3rd character
+  relocate(litter_number) %>% # litter_number is the key variable, put it into the leading column
+  mutate(
+    wt_gain = gd18_weight - gd0_weight,
+    dose = str_to_lower(dose))
+
+view(litter_data)
+
+# merge data by litter_number (key variable)
+fas_data = 
+  left_join(pup_data,litter_data, by = "litter_number")
+
+view(fas_data)
+
+```
+
+
+
+
