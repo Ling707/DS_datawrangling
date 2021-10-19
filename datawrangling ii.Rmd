@@ -1,0 +1,10 @@
+---
+title: "data wrangling 2"
+author: "Ling"
+date: "10/19/2021"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```

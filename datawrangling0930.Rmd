@@ -164,6 +164,9 @@ view(fas_data)
 
 ```
 
+# questions
 
-
+- knit output table for regression?
+  - latex?
+  - `roomtidy`?
 
