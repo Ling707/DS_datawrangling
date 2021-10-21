@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(rvest)
 library(httr)
+library(p8105.datasets)
 ```
 # homework
 
@@ -118,6 +119,199 @@ poke =
 
 poke$name
 ```
+
+# data wrangling 2-2: strings and factors
+
+## lecture
+
+- strings vs. factors
+  - strings: loose, `stringr` package
+  - factors: categorical, `forcats` package
+  
+## practice
+
+- vectors
+  - find strings: is any value met the condition?
+  
+```{r}
+string_vec = c("my", "name", "is", "jeff")
+
+str_detect(string_vec, "jeff") 
+
+# it's case sensitive!
+
+str_detect(string_vec, "JEFF")
+
+# ^ for the beginning, $ for the end
+
+string_vec = c(
+  "i think we all rule for participating",
+  "i think i have been caught",
+  "i think this will be quite fun actually",
+  "it will be fun, i think"
+  )
+
+str_detect(string_vec, "^i think")
+str_detect(string_vec, "i think$")
+
+# [] for "or"
+string_vec = c(
+  "Y'all remember Pres. HW Bush?",
+  "I saw a green bush",
+  "BBQ and Bushwalking at Molonglo Gorge",
+  "BUSH -- LIVE IN CONCERT!!"
+  )
+
+str_detect(string_vec,"[Bb]ush")
+
+# another example
+
+string_vec = c(
+  '7th inning stretch',
+  '1st half soon to begin. Texas won the toss.',
+  'she is 5 feet 4 inches tall',
+  '3AM - cant sleep :('
+  )
+
+str_detect(string_vec, "^[0-9][a-zA-Z]")
+           
+# . for anything ('.' in R <=> '*' in SAS)
+# %in% for a set of strings
+
+string_vec = c(
+  'Its 7:11 in the evening',
+  'want to go to 7-11?',
+  'my flight is AA711',
+  'NetBios: scanning ip 203.167.114.66'
+  )
+
+str_detect(string_vec, "7.11")
+
+# find [],(),or .: use \\ to make them have a meaning
+
+string_vec = c(
+  'The CI is [2, 5]',
+  ':-]',
+  ':-[',
+  'I found the answer on pages [6-7]'
+  )
+
+str_detect(string_vec, "\\[")
+
+# So, DO NOT put []()$ et al. into file names
+
+```
+
+- factors
+
+```{r}
+vec_sex = factor(c("male", "male", "female", "female"))
+vec_sex
+as.numeric(vec_sex) # it's alphabetically ordered
+
+# to change the order(level)
+vec_sex = fct_relevel(vec_sex, "male")
+as.numeric(vec_sex)
+```
+
+  - *coersion*
+  
+  - i.e.
+  
+```{r}
+nsduh_url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
+
+table_marj = 
+  read_html(nsduh_url) %>% 
+  html_table() %>% 
+  first() %>%
+  slice(-1)
+
+data_marj = 
+  table_marj %>%
+  select(-contains("P Value")) %>% # get exact p-values
+  pivot_longer(
+    -State, # get rid of states
+    names_to = "age_year", 
+    values_to = "percent") %>% # get age and percent
+  separate(age_year, into = c("age", "year"), sep = "\\(") %>% # separate the 2 values
+  mutate(
+    year = str_replace(year, "\\)", ""), # get rid of ) to make year cleaner
+    percent = str_replace(percent, "[a-c]$", ""), # get rid of the annotate markers
+    percent = as.numeric(percent)) %>%
+  filter(!(State %in% c("Total U.S.", "Northeast", "Midwest", "South", "West"))) # get rid of the summary rows; notice the %in%!
+
+# make a plot
+
+data_marj %>%
+  filter(age == "12-17") %>% 
+  mutate(State = fct_reorder(State, percent)) %>% # reorder state by the mean percent, not an alphabetical order
+  ggplot(aes(x = State, y = percent, color = year)) + 
+    geom_point() + 
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+  
+ - another example: restaurant insceptions
+ 
+```{r}
+data("rest_inspec")
+
+rest_inspec %>% # get a summary table for numbers of restaurant, by borough and grade
+  group_by(boro, grade) %>% 
+  summarize(n = n()) %>% 
+  pivot_wider(names_from = grade, values_from = n)
+
+# easier way to get a summary table: janitor::tabyl
+rest_inspec %>%
+  janitor::tabyl(boro,grade)
+
+
+rest_inspec =
+  rest_inspec %>%
+  filter(grade %in% c("A", "B", "C"), boro != "Missing") %>% 
+  mutate(boro = str_to_title(boro))
+
+# find pizza places
+
+rest_inspec %>% 
+  filter(str_detect(dba, "Pizza")) %>% 
+  group_by(boro, grade) %>% 
+  summarize(n = n()) %>% 
+  pivot_wider(names_from = grade, values_from = n)
+
+# vs.
+
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>% 
+  group_by(boro, grade) %>% 
+  summarize(n = n()) %>% 
+  pivot_wider(names_from = grade, values_from = n)
+
+# make a bar plot to show the distribution of pizza places
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>%
+  mutate(boro = fct_infreq(boro),
+         boro = str_replace(boro, "Manhattan", "The City")) %>% # reorder boro by the frequencies, and rename manhattan into the city (but this made the boro from factor into string)
+  ggplot(aes(x = boro, fill = grade)) + 
+  geom_bar() 
+
+# infreq: order by frequency in a descending order
+# inorder: order by ?
+
+# correct way to rename a factor level
+
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>%
+  mutate(boro = fct_infreq(boro),
+         boro = fct_recode(boro, which(boro == "Manhattan"), "The City")) %>% # reorder boro by the frequencies, and recode (NOT replace!) manhattan into the city (but this made the boro from factor into string)
+  ggplot(aes(x = boro, fill = grade)) + 
+  geom_bar() 
+
+```
+- other examples
+  - weather
+  - pulse
+  - airbnb
 
 
 
